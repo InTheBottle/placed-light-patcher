@@ -30,10 +30,21 @@ namespace TrueLightPatcher
                 .Run(args);
         }
 
-        private static ICellGetter? GetDefaultLightingCell(IReadOnlyLinkCache TrueLightLinkCache)
+        private static ICellGetter? GetDefaultLightingCell(ILinkCache TrueLightLinkCache)
         {
-            return TrueLightLinkCache.PriorityOrder.Cell()
+            var defaultCell = TrueLightLinkCache.PriorityOrder.Cell()
                 .FirstOrDefault(c => c.Flags.HasFlag(Cell.Flag.IsInteriorCell) && c.Lighting != null);
+            if (defaultCell != null)
+            {
+                Console.WriteLine($"Default lighting cell: {defaultCell.EditorID} (FormKey: {defaultCell.FormKey})");
+                Console.WriteLine($" - Ambient: {defaultCell.Lighting.Ambient}");
+                Console.WriteLine($" - Fog Near: {defaultCell.Lighting.FogNear}, Far: {defaultCell.Lighting.FogFar}");
+            }
+            else
+            {
+                Console.WriteLine("Warning: No valid default lighting cell found in TrueLight plugins.");
+            }
+            return defaultCell;
         }
 
         public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
@@ -84,7 +95,7 @@ namespace TrueLightPatcher
                     TrueLightCellRecord = GetDefaultLightingCell(TrueLightLinkCache);
                     if (TrueLightCellRecord == null || TrueLightCellRecord.Lighting == null)
                     {
-                        continue;
+                        continue; 
                     }
                 }
 
