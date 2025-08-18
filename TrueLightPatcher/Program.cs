@@ -32,7 +32,7 @@ namespace TrueLightPatcher
 
         private static ICellGetter? GetDefaultLightingCell(ILinkCache TrueLightLinkCache)
         {
-            var defaultCell = TrueLightLinkCache.PriorityOrder.Cell()
+            var defaultCell = TrueLightLinkCache.TryResolveAll<ICellGetter>(null)
                 .FirstOrDefault(c => c.Flags.HasFlag(Cell.Flag.IsInteriorCell) && c.Lighting != null);
             if (defaultCell != null)
             {
@@ -55,6 +55,7 @@ namespace TrueLightPatcher
                 return;
             }
 
+            // Check for conflicting lighting template plugins
             var conflictingTemplates = new[] { "TL - Default.esp", "TL - Bright.esp", "TL - Even Brighter.esp", "TL - Fixed Vanilla.esp", "TL - Nightmare.esp" };
             var activeTemplates = conflictingTemplates.Where(t => state.LoadOrder.ContainsKey(ModKey.FromNameAndExtension(t))).ToList();
             if (activeTemplates.Count > 1)
@@ -63,6 +64,7 @@ namespace TrueLightPatcher
                 return;
             }
 
+            // Setup list of True Light plugins
             var TrueLightPlugins = new List<ISkyrimModGetter> { TrueLightMod.Mod };
             foreach (var modKey in TrueLightAddons)
             {
@@ -75,6 +77,7 @@ namespace TrueLightPatcher
             var loadOrderLinkCache = state.LoadOrder.ToImmutableLinkCache();
             var TrueLightLinkCache = TrueLightPlugins.ToImmutableLinkCache();
 
+            // Process all interior cells
             var cellContexts = state.LoadOrder.PriorityOrder.Cell()
                 .WinningContextOverrides(loadOrderLinkCache)
                 .Where(i => i.Record.Flags.HasFlag(Cell.Flag.IsInteriorCell));
@@ -90,20 +93,24 @@ namespace TrueLightPatcher
                 var cell = winningCellContext.Record;
                 ICellGetter? TrueLightCellRecord;
 
+                // Try to resolve the cell in TrueLight plugins
                 if (!TrueLightLinkCache.TryResolve<ICellGetter>(cell.FormKey, out TrueLightCellRecord) || TrueLightCellRecord.Lighting == null)
                 {
+                    // If no match or no lighting, use a default lighting template from TrueLight
                     TrueLightCellRecord = GetDefaultLightingCell(TrueLightLinkCache);
                     if (TrueLightCellRecord == null || TrueLightCellRecord.Lighting == null)
                     {
-                        continue; 
+                        continue; // Skip if no default lighting is available
                     }
                 }
 
+                // Skip if lighting is already identical
                 if (winningCellContext.Record.Equals(TrueLightCellRecord, cellMask))
                 {
                     continue;
                 }
 
+                // Apply TrueLight lighting
                 winningCellContext.GetOrAddAsOverride(state.PatchMod).Lighting = TrueLightCellRecord.Lighting.DeepCopy();
                 patchedCellCount++;
             }
@@ -121,6 +128,7 @@ namespace TrueLightPatcher
                     continue;
                 }
 
+                // Forward Light records if the winning record is using vanilla values
                 if (winningLightRecord.Equals(originLightRecord) && !winningLightRecord.Equals(TrueLightRecord))
                 {
                     state.PatchMod.Lights.DuplicateInAsNewRecord(TrueLightRecord);
